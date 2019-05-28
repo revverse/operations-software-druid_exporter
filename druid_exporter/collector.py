@@ -70,16 +70,16 @@ JETTY_METRICS = {
 QUERY_METRICS = {
     'query/bytes': {'labels': ['type', 'dataSource'], 'type': 'summary'},
     'query/cpu/time': {**QUERY_TIME_SUMMARY_METRIC},
-    'query/time': {'labels': ['type', 'dataSource'], 'suffix': '_ms', 'type': 'histogram', 'buckets': (150, 500, 1000, 5000, 10000, float('inf'))},
+    'query/time': {'labels': ['type', 'dataSource'], 'suffix': '_ms', 'type': 'histogram', 'buckets': (150, 1000, 5000, 10000, 30000, float('inf'))},
 }
 
 QUERY_CACHE_METRICS = {
     'query/cache/caffeine/delta/evictionBytes': {**SKIP_METRIC},
     'query/cache/caffeine/delta/loadTime': {**SKIP_METRIC},
     'query/cache/caffeine/delta/requests': {**SKIP_METRIC},
-    'query/cache/caffeine/total/evictionBytes': {**SKIP_METRIC},
-    'query/cache/caffeine/total/loadTime': {**SKIP_METRIC},
-    'query/cache/caffeine/total/requests': {**SKIP_METRIC},
+    'query/cache/caffeine/total/evictionBytes': {},
+    'query/cache/caffeine/total/loadTime': {},
+    'query/cache/caffeine/total/requests': {},
     'query/cache/delta/averageBytes': {**SKIP_METRIC},
     'query/cache/delta/errors': {**SKIP_METRIC},
     'query/cache/delta/evictions': {**SKIP_METRIC},
@@ -100,10 +100,15 @@ QUERY_CACHE_METRICS = {
     'query/cache/total/timeouts': {},
 }
 
+QUERY_COUNT_METRIC = {
+    'type': 'counter',
+    'suffix': '',
+}
+
 QUERY_COUNT_STATS = {
-    'query/failed/count': {},
-    'query/interrupted/count': {},
-    'query/success/count': {},
+    'query/failed/count': {**QUERY_COUNT_METRIC},
+    'query/interrupted/count': {**QUERY_COUNT_METRIC},
+    'query/success/count': {**QUERY_COUNT_METRIC},
 }
 
 SEGMENT_METRICS = {
