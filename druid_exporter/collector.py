@@ -15,10 +15,12 @@
 
 import re
 import logging
+import copy
 
 from prometheus_client.core import (Counter, Gauge, Histogram, Summary)
 
 log = logging.getLogger(__name__)
+sep_config = {}
 
 SKIP_METRIC = {
     'type': 'skip',
@@ -80,6 +82,8 @@ QUERY_CACHE_METRICS = {
     'query/cache/caffeine/total/evictionBytes': {},
     'query/cache/caffeine/total/loadTime': {},
     'query/cache/caffeine/total/requests': {},
+    'query/cache/memcached/total': {'labels': ['memcached_metric']},
+    'query/cache/memcached/delta': {'labels': ['memcached_metric']},
     'query/cache/delta/averageBytes': {**SKIP_METRIC},
     'query/cache/delta/errors': {**SKIP_METRIC},
     'query/cache/delta/evictions': {**SKIP_METRIC},
@@ -204,6 +208,7 @@ class DruidCollector(object):
             },
             'middlemanager': {
                 **JETTY_METRICS,
+                **INGEST_METRICS,
             },
             'peon': {
                 **JETTY_METRICS,
@@ -223,6 +228,7 @@ class DruidCollector(object):
         }
 
     def _get_metric_name(self, daemon, metric_name, config):
+        
         if 'name' in config:
             metric_name = config['name']
 
@@ -246,6 +252,7 @@ class DruidCollector(object):
         return 'druid_' + daemon + '_' + metric_name
 
     def process_datapoint(self, datapoint):
+        global sep_config
         if (datapoint['feed'] != 'metrics'):
             log.debug("'feed' field is not 'metrics' in datapoint, skipping: {}".format(datapoint))
             return
@@ -262,32 +269,48 @@ class DruidCollector(object):
             log.warn("metric '{}' is not supported, skipping: {}".format(datapoint['metric'], datapoint))
             return
 
-        config = self.supported_metrics[daemon][metric_name]
-        config.setdefault('labels', [])
-        config.setdefault('type', 'gauge')
-        config.setdefault('suffix', '_count')
+#        if 'sep_config' not in locals():
+#            sep_config = {}
+        if daemon not in sep_config:
+            sep_config[daemon]= {}
+            log.debug("Reverse Metric: {}".format(sep_config))
+        if metric_name not in sep_config[daemon]:
+            sep_config[daemon][metric_name] = copy.copy(self.supported_metrics[daemon][metric_name])
+            log.debug("Reverse IFtrue: {}")
+        else:
+            sep_config[daemon][metric_name] = sep_config[daemon][metric_name]
+            log.debug("Reverse IFelse: {}")
+        #config = self.supported_metrics[daemon][metric_name]
+        log.debug("Reverse Metric: {}".format(sep_config))
+        sep_config[daemon][metric_name].setdefault('labels', [])
+        sep_config[daemon][metric_name].setdefault('type', 'gauge')
+        sep_config[daemon][metric_name].setdefault('suffix', '_count')
 
-        metric_type = config['type']
+        metric_type = sep_config[daemon][metric_name]['type']
 
         if metric_type == 'skip':
             return
 
-        metric_name = self._get_metric_name(daemon, metric_name, config)
+        metric_name_full = self._get_metric_name(daemon, metric_name, sep_config[daemon][metric_name])
         metric_value = float(datapoint['value'])
-        metric_labels = tuple(sorted(config['labels'] + ['host']))
-        label_values = tuple([datapoint[label_name] for label_name in metric_labels])
+        metric_labels = tuple(sorted(sep_config[daemon][metric_name]['labels'] + ['host']))
+        log.debug("Labels: {}".format(metric_labels))
+        label_values = tuple([datapoint[label_name.replace('_',' ')] for label_name in metric_labels])
+        log.debug("Labels value: {}".format(label_values))
 
-        if '_metric_' not in config:
+        if '_metric_' not in sep_config[daemon][metric_name]:
             if metric_type == 'counter':
-                config['_metric_'] = Counter(metric_name, metric_name, metric_labels)
+                sep_config[daemon][metric_name]['_metric_'] = Counter(metric_name_full, metric_name_full, metric_labels)
             if metric_type == 'gauge':
-                config['_metric_'] = Gauge(metric_name, metric_name, metric_labels)
+                sep_config[daemon][metric_name]['_metric_'] = Gauge(metric_name_full, metric_name_full, metric_labels)
             elif metric_type == 'summary':
-                config['_metric_'] = Summary(metric_name, metric_name, metric_labels)
+                sep_config[daemon][metric_name]['_metric_'] = Summary(metric_name_full, metric_name_full, metric_labels)
             elif metric_type == 'histogram':
-                config['_metric_'] = Histogram(metric_name, metric_name, metric_labels, buckets=config['buckets'])
+                sep_config[daemon][metric_name]['_metric_'] = Histogram(metric_name_full, metric_name_full, metric_labels, buckets=sep_config[daemon][metric_name]['buckets'])
+                log.debug("final metric_name: {}".format(metric_name))
+                log.debug("sep config : {}".format(sep_config[daemon]))
 
-        metric = config['_metric_']
+        metric = sep_config[daemon][metric_name]['_metric_']
 
         if len(metric_labels) > 0:
             metric = metric.labels(*label_values)

@@ -24,6 +24,8 @@ from prometheus_client import generate_latest, make_wsgi_app, REGISTRY
 from wsgiref.simple_server import make_server
 
 log = logging.getLogger(__name__)
+sep_config = {}
+
 
 class DruidWSGIApp(object):
 
